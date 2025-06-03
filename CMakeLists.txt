@@ -27,45 +27,97 @@
 
 # ament_package()
 
+# cmake_minimum_required(VERSION 3.8)
+# project(ros2_fdr_cpp)
+
+# if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+#   add_compile_options(-Wall -Wextra -Wpedantic)
+# endif()
+
+# # Find dependencies
+# find_package(ament_cmake REQUIRED)
+# find_package(rclcpp REQUIRED)
+# find_package(sensor_msgs REQUIRED)
+# find_package(cv_bridge REQUIRED)
+# find_package(OpenCV REQUIRED)
+
+# # Include directories
+# include_directories(
+#   include
+#   ${OpenCV_INCLUDE_DIRS}
+# )
+
+# # Add executable
+# add_executable(face_recognition_node
+#   src/main.cpp
+#   src/FaceRecognitionNode.cpp
+#   src/VideoRecordingNode.cpp
+#   src/framecapture.cpp
+#   src/facedetector.cpp
+#   src/facerecognizer.cpp
+# )
+
+# # Link libraries
+# target_link_libraries(face_recognition_node
+#   ${OpenCV_LIBS}
+# )
+
+# # Install
+# install(TARGETS
+#   face_recognition_node
+#   DESTINATION lib/${PROJECT_NAME}
+# )
+
+# ament_package()
+
+
 # // face_recognition_node/CMakeLists.txt
+
 cmake_minimum_required(VERSION 3.8)
 project(ros2_fdr_cpp)
 
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(image_transport REQUIRED)
 
+# Include directories
 include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
 )
 
-add_executable(ros2_fdr_cpp
+# Add executable
+add_executable(face_recognition_node
   src/main.cpp
+  src/FaceRecognitionNode.cpp
+  src/VideoRecordingNode.cpp
   src/framecapture.cpp
   src/facedetector.cpp
   src/facerecognizer.cpp
 )
 
-target_include_directories(ros2_fdr_cpp PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/ros2_fdr_cpp>
-)
-
-target_link_libraries(ros2_fdr_cpp
+# Link libraries
+target_link_libraries(face_recognition_node
   ${OpenCV_LIBS}
 )
 
-ament_target_dependencies(ros2_fdr_cpp
+# Add dependencies
+ament_target_dependencies(face_recognition_node
   rclcpp
   sensor_msgs
   cv_bridge
-  image_transport
 )
 
-install(TARGETS ros2_fdr_cpp
+# Install
+install(TARGETS
+  face_recognition_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
