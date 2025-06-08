@@ -34,12 +34,13 @@ FaceRecognitionNode::FaceRecognitionNode()
         RCLCPP_ERROR(this->get_logger(), "Failed to load target image from: %s", target_image_path.c_str());
         throw std::runtime_error("Failed to load target image");
     }
+    RCLCPP_INFO(this->get_logger(), "Target image size: %dx%d", m_targetImage.cols, m_targetImage.rows);
 
     // Process target image
     m_faceDetector->setFrameInputSize(m_targetImage.size());
-    m_faceDetector->setdetectionTopK(3);
+    m_faceDetector->setdetectionTopK(1);
     m_targetFace = m_faceDetector->infer(m_targetImage);
-    m_targetFeatures = m_faceRecognizer->extractfeatures(m_targetImage, m_targetFace);
+    m_targetFeatures = m_faceRecognizer->extractfeatures(m_targetImage, m_targetFace.row(0));
 
     // Set up camera size
     const auto [w, h] = m_frameCapture.getCameraSize();
@@ -76,20 +77,42 @@ FaceRecognitionNode::~FaceRecognitionNode() {
 }
 
 void FaceRecognitionNode::processFrame() {
+    cv::Mat output_image;
     while (m_running) {
         cv::Mat frame = m_frameCapture.getLatestFrame();
         if (frame.empty()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
+        m_faceDetector->setFrameInputSize(frame.size());
+        m_faceDetector->setdetectionTopK(5000);
+        // RCLCPP_INFO(this->get_logger(), "Processing frame of size: %dx%d", frame.cols, frame.rows);
 
         cv::Mat query_faces = m_faceDetector->infer(frame);
+        // RCLCPP_INFO(this->get_logger(), "Detected %d faces", query_faces.rows);
+
         if (query_faces.empty()) {
-            continue;
+            // continue;
+            output_image = frame.clone();
+            // Store and publish the query frame
+        {
+            std::lock_guard<std::mutex> lock(m_frameMutex);
+            m_lastQueryFrame = output_image.clone();
         }
+        }
+
+        std::vector<std::pair<double, bool>> matches;
+
+        if(!query_faces.empty())
+        {
 
         // Process detected faces
         for (int i = 0; i < query_faces.rows; ++i) {
+            cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, query_faces.row(i));
+            RCLCPP_INFO(this->get_logger(), "Matched %zu faces", matches.size());
+            // Measure similarity of target face to query face
+            const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
+            matches.push_back(match);
             int x1 = static_cast<int>(query_faces.at<float>(i, 0));
             int y1 = static_cast<int>(query_faces.at<float>(i, 1));
             int w = static_cast<int>(query_faces.at<float>(i, 2));
@@ -98,37 +121,67 @@ void FaceRecognitionNode::processFrame() {
         }
 
         // Extract and match features
-        cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, query_faces.row(0));
-        const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
+        // cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, query_faces);
+        // // std::vector<std::pair<double, bool>> match_results = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
+        // RCLCPP_INFO(this->get_logger(), "Matched %zu faces", match_results.size());
+
+        // const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
 
         // Create visualization
         auto vis_target = m_frameCapture.visualize(m_targetImage, m_targetFace, {{1.0, true}}, -0.1f, frame.size());
-        auto vis_query = m_frameCapture.visualize(frame, query_faces, {match}, 30.00);
+        auto vis_query = m_frameCapture.visualize(frame, query_faces, matches, 30.00);
+/*************************************************************************************************************************** */
+        //  std::vector<std::pair<double, bool>> match_results;
+
+
+        // if (!query_faces.empty()) {
+        //     for (int i = 0; i < query_faces.rows; ++i) {
+        //         cv::Mat single_face = query_faces.row(i);
+        //         cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, single_face);
+
+        //         if (query_features.empty()) {
+        //             match_results.emplace_back(0.0f, false);
+        //             continue;
+        //         }
+
+        //         auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
+        //         match_results.push_back(match);
+        //     }
+        // }
+
+        // // Create visualizations
+        // auto vis_target = m_frameCapture.visualize(
+        //     m_targetImage, m_targetFace, {{1.0f, true}}, -0.1f, frame.size());
+
+        // auto vis_query = m_frameCapture.visualize(
+        //     frame, query_faces, match_results, 30.0f);
+/**************************************************************************************************************************************** */
         
-        cv::Mat output_image;
         cv::hconcat(vis_target, vis_query, output_image);
+        {
+            std::lock_guard<std::mutex> lock(m_frameMutex);
+            m_lastQueryFrame = vis_query.clone();
+        }
+        }
 
         if (output_image.empty()) {
             RCLCPP_WARN(this->get_logger(), "Output image is empty, skipping write");
             continue;
         }
 
+        // output_image = query_faces.clone();
         if (output_image.channels() != 3) {
             cv::cvtColor(output_image, output_image, cv::COLOR_GRAY2BGR);
         }
 
-        // Store and publish the query frame
-        {
-            std::lock_guard<std::mutex> lock(m_frameMutex);
-            m_lastQueryFrame = vis_query.clone();
-        }
+        
         publishQueryFrame(output_image);
 
         // Write to GStreamer for Qt application streaming
         m_gstWriter.write(output_image);
 
         // Handle keyboard input
-        handleKeyboardInput();
+        // handleKeyboardInput();
     }
 }
 

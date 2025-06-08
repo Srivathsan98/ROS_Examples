@@ -117,3 +117,64 @@ std::pair<double, bool> FaceRecognizer::matchFeatures(const cv::Mat &target_feat
     }
     return {score, score <= threshold_norml2};
 }
+
+/******************************************************************************************************************************* */
+// cv::Mat FaceRecognizer::extractfeatures(const cv::Mat &original_image, const cv::Mat &face_boxes)
+// {
+//     // cv::Mat target_aligned;
+//     // recognizer->alignCrop(original_image, face_image, target_aligned);
+//     // cv::Mat target_features;
+//     // recognizer->feature(target_aligned, target_features);
+//     // return target_features.clone();
+//     std::vector<cv::Mat> all_features;
+
+//     for (int i = 0; i < face_boxes.rows; ++i)
+//     {
+//         cv::Mat single_face = face_boxes.row(i);  // 1x15
+//         cv::Mat aligned;
+//         recognizer->alignCrop(original_image, single_face, aligned);
+
+//         if (aligned.empty()) {
+//             continue;  // skip failed alignment
+//         }
+
+//         cv::Mat feature;
+//         recognizer->feature(aligned, feature);
+
+//         if (!feature.empty())
+//             all_features.push_back(feature.clone());
+//     }
+
+//     // Combine all feature vectors into a single matrix (N x M)
+//     cv::Mat feature_matrix;
+//     if (!all_features.empty()) {
+//         cv::vconcat(all_features, feature_matrix);
+//     }
+
+//     return feature_matrix;
+// }
+
+// std::vector<std::pair<double, bool>> FaceRecognizer::matchFeatures(const cv::Mat &target_features, const cv::Mat &query_features_batch)
+// {
+//     // const double score = recognizer->match(target_features, query_features, distancer_type);
+//     // if (distancer_type == cv::FaceRecognizerSF::DisType::FR_COSINE)
+//     // {
+//     //     return std::make_pair(score, score >= threshold_cosine);
+//     // }
+//     // return {score, score <= threshold_norml2};
+
+//      std::vector<std::pair<double, bool>> results;
+
+//     for (int i = 0; i < query_features_batch.rows; ++i)
+//     {
+//         const cv::Mat query = query_features_batch.row(i);
+//         double score = recognizer->match(target_features, query, distancer_type);
+
+//         if (distancer_type == cv::FaceRecognizerSF::DisType::FR_COSINE)
+//             results.emplace_back(score, score >= threshold_cosine);
+//         else
+//             results.emplace_back(score, score <= threshold_norml2);
+//     }
+
+//     return results;
+// }

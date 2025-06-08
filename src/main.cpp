@@ -8,7 +8,7 @@
 // Define the global variables
 std::string facedetection_modelpath = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/face_detection_model.onnx";
 std::string facerecognition_modelpath = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/face_recognition_model.onnx";
-std::string target_image_path = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/target_image.jpg";
+std::string target_image_path = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/output_image.jpg";
 std::string target_image_name = "target.jpg";
 
 // Global variables for cleanup
@@ -20,6 +20,10 @@ void signalHandler(int signum) {
     if (executor) {
         RCLCPP_INFO(rclcpp::get_logger("main"), "Shutting down...");
         executor->cancel();
+        executor->remove_node(face_recognition_node);
+        executor->remove_node(video_recording_node);
+        face_recognition_node->~FaceRecognitionNode();
+        video_recording_node->~VideoRecordingNode();    
     }
 }
 
