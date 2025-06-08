@@ -23,8 +23,9 @@ public:
 
 private:
     void processFrame();
-    void handleKeyboardInput();
     void publishQueryFrame(const cv::Mat& frame);
+    std::string getCurrentDateFolder();
+    void ensureDirectoryExists(const std::string& path);
     
     // Frame processing components
     FrameCapture m_frameCapture;
@@ -46,4 +47,9 @@ private:
     cv::Mat m_targetFeatures;
     mutable std::mutex m_frameMutex;
     cv::Mat m_lastQueryFrame;
+
+    std::vector<cv::Mat> m_unrecognizedFaceCache;
+    const double UNRECOGNIZED_SIM_THRESHOLD = 0.91;  // Tune this
+
+    const std::string UNRECOG_DIR = "unrecognized_faces";
 };
