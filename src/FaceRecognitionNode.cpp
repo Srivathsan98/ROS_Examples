@@ -48,13 +48,13 @@ FaceRecognitionNode::FaceRecognitionNode()
 
     // Initialize GStreamer writer
     std::ostringstream pipeline;
-    pipeline << "appsrc is-live=true block=true format=3 caps=video/x-raw,format=BGR,width=" << w * 2
+    pipeline << "appsrc is-live=true block=true format=3 caps=video/x-raw,format=BGR,width=" << w
              << ",height=" << h << ",framerate=30/1 ! "
-             << "videoconvert ! x264enc tune=zerolatency speed-preset=ultrafast bitrate=500 ! "
+             << "videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2000 ! "
              << "rtph264pay config-interval=1 pt=96 ! "
              << "udpsink host=127.0.0.1 port=5000";
 
-    m_gstWriter.open(pipeline.str(), cv::CAP_GSTREAMER, 30.0, cv::Size(w * 2, h), true);
+    m_gstWriter.open(pipeline.str(), cv::CAP_GSTREAMER, 30.0, cv::Size(w, h), true);
     if (!m_gstWriter.isOpened()) {
         RCLCPP_ERROR(this->get_logger(), "Failed to open GStreamer pipeline");
         throw std::runtime_error("Failed to open GStreamer pipeline");
@@ -91,16 +91,6 @@ void FaceRecognitionNode::processFrame() {
         cv::Mat query_faces = m_faceDetector->infer(frame);
         // RCLCPP_INFO(this->get_logger(), "Detected %d faces", query_faces.rows);
 
-        if (query_faces.empty()) {
-            // continue;
-            output_image = frame.clone();
-            // Store and publish the query frame
-        {
-            std::lock_guard<std::mutex> lock(m_frameMutex);
-            m_lastQueryFrame = output_image.clone();
-        }
-        }
-
         std::vector<std::pair<double, bool>> matches;
 
         if(!query_faces.empty())
@@ -109,59 +99,36 @@ void FaceRecognitionNode::processFrame() {
         // Process detected faces
         for (int i = 0; i < query_faces.rows; ++i) {
             cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, query_faces.row(i));
+            if (query_features.empty()) {
+        matches.emplace_back(0.0, false);  // Avoid crash, still show box
+        continue;
+    }
             RCLCPP_INFO(this->get_logger(), "Matched %zu faces", matches.size());
             // Measure similarity of target face to query face
             const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
             matches.push_back(match);
-            int x1 = static_cast<int>(query_faces.at<float>(i, 0));
-            int y1 = static_cast<int>(query_faces.at<float>(i, 1));
-            int w = static_cast<int>(query_faces.at<float>(i, 2));
-            int h = static_cast<int>(query_faces.at<float>(i, 3));
-            float conf = query_faces.at<float>(i, 14);
         }
 
-        // Extract and match features
-        // cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, query_faces);
-        // // std::vector<std::pair<double, bool>> match_results = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
-        // RCLCPP_INFO(this->get_logger(), "Matched %zu faces", match_results.size());
-
-        // const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
-
         // Create visualization
-        auto vis_target = m_frameCapture.visualize(m_targetImage, m_targetFace, {{1.0, true}}, -0.1f, frame.size());
-        auto vis_query = m_frameCapture.visualize(frame, query_faces, matches, 30.00);
-/*************************************************************************************************************************** */
-        //  std::vector<std::pair<double, bool>> match_results;
+        // auto vis_target = m_frameCapture.visualize(m_targetImage, m_targetFace, {{1.0, true}}, -0.1f, frame.size());
+        RCLCPP_INFO(this->get_logger(), "Detected %d faces, Generated %zu matches", query_faces.rows, matches.size());
 
-
-        // if (!query_faces.empty()) {
-        //     for (int i = 0; i < query_faces.rows; ++i) {
-        //         cv::Mat single_face = query_faces.row(i);
-        //         cv::Mat query_features = m_faceRecognizer->extractfeatures(frame, single_face);
-
-        //         if (query_features.empty()) {
-        //             match_results.emplace_back(0.0f, false);
-        //             continue;
-        //         }
-
-        //         auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
-        //         match_results.push_back(match);
-        //     }
-        // }
-
-        // // Create visualizations
-        // auto vis_target = m_frameCapture.visualize(
-        //     m_targetImage, m_targetFace, {{1.0f, true}}, -0.1f, frame.size());
-
-        // auto vis_query = m_frameCapture.visualize(
-        //     frame, query_faces, match_results, 30.0f);
-/**************************************************************************************************************************************** */
-        
-        cv::hconcat(vis_target, vis_query, output_image);
+        auto vis_query = m_frameCapture.visualize(frame, query_faces, matches, 30.0f);
+        output_image = vis_query.clone();
         {
             std::lock_guard<std::mutex> lock(m_frameMutex);
             m_lastQueryFrame = vis_query.clone();
         }
+        
+        }
+        else
+        {
+            output_image = frame.clone();
+            {
+                std::lock_guard<std::mutex> lock(m_frameMutex);
+                m_lastQueryFrame = output_image.clone();
+            }
+            RCLCPP_INFO(this->get_logger(), "No faces detected in the current frame");
         }
 
         if (output_image.empty()) {
@@ -180,8 +147,6 @@ void FaceRecognitionNode::processFrame() {
         // Write to GStreamer for Qt application streaming
         m_gstWriter.write(output_image);
 
-        // Handle keyboard input
-        // handleKeyboardInput();
     }
 }
 
@@ -194,6 +159,3 @@ void FaceRecognitionNode::publishQueryFrame(const cv::Mat& frame) {
     }
 }
 
-void FaceRecognitionNode::handleKeyboardInput() {
-    cv::waitKey(1);
-}
