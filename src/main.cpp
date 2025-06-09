@@ -10,6 +10,13 @@ std::string facedetection_modelpath = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/model
 std::string facerecognition_modelpath = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/face_recognition_model.onnx";
 std::string target_image_path = "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/output_image.jpg";
 std::string target_image_name = "target.jpg";
+std::vector<std::string> target_image_paths = {
+    "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/target_images/Kamal_haasan.jpg",
+    "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/target_images/mohanlal.jpg",
+    "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/target_images/person.jpg",
+    "/home/pvsp/ros2_ws/src/ros2_fdr_cpp/models/target_images/srivathsan.png"
+    // add more if needed
+};
 
 // Global variables for cleanup
 std::shared_ptr<FaceRecognitionNode> face_recognition_node;

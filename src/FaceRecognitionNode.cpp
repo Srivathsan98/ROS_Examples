@@ -27,26 +27,54 @@ FaceRecognitionNode::FaceRecognitionNode()
     std::string date_folder = getCurrentDateFolder();
     ensureDirectoryExists(date_folder);
 
-    // Load target image
-    if (target_image_path.empty())
-    {
-        RCLCPP_ERROR(this->get_logger(), "Target image path is empty");
-        throw std::runtime_error("Target image path is empty");
-    }
+    // // Load target image
+    // if (target_image_path.empty())
+    // {
+    //     RCLCPP_ERROR(this->get_logger(), "Target image path is empty");
+    //     throw std::runtime_error("Target image path is empty");
+    // }
 
-    m_targetImage = cv::imread(target_image_path);
-    if (m_targetImage.empty())
-    {
-        RCLCPP_ERROR(this->get_logger(), "Failed to load target image from: %s", target_image_path.c_str());
-        throw std::runtime_error("Failed to load target image");
-    }
-    RCLCPP_INFO(this->get_logger(), "Target image size: %dx%d", m_targetImage.cols, m_targetImage.rows);
+    // m_targetImage = cv::imread(target_image_path);
+    // if (m_targetImage.empty())
+    // {
+    //     RCLCPP_ERROR(this->get_logger(), "Failed to load target image from: %s", target_image_path.c_str());
+    //     throw std::runtime_error("Failed to load target image");
+    // }
+    // RCLCPP_INFO(this->get_logger(), "Target image size: %dx%d", m_targetImage.cols, m_targetImage.rows);
 
-    // Process target image
-    m_faceDetector->setFrameInputSize(m_targetImage.size());
-    m_faceDetector->setdetectionTopK(1);
-    m_targetFace = m_faceDetector->infer(m_targetImage);
-    m_targetFeatures = m_faceRecognizer->extractfeatures(m_targetImage, m_targetFace.row(0));
+    // // Process target image
+    // m_faceDetector->setFrameInputSize(m_targetImage.size());
+    // m_faceDetector->setdetectionTopK(1);
+    // m_targetFace = m_faceDetector->infer(m_targetImage);
+    // m_targetFeatures = m_faceRecognizer->extractfeatures(m_targetImage, m_targetFace.row(0));
+
+    for (const auto &path : target_image_paths)
+    {
+        cv::Mat targetImage = cv::imread(path);
+        if (targetImage.empty())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to load target image from: %s", path.c_str());
+            continue;
+        }
+
+        m_targetImages.push_back(targetImage);
+
+        m_faceDetector->setFrameInputSize(targetImage.size());
+        m_faceDetector->setdetectionTopK(1);
+
+        cv::Mat targetFace = m_faceDetector->infer(targetImage);
+        if (targetFace.empty())
+        {
+            RCLCPP_WARN(this->get_logger(), "No face detected in target image: %s", path.c_str());
+            continue;
+        }
+
+        m_targetFaces.push_back(targetFace);
+        m_targetFeaturesList.push_back(
+            m_faceRecognizer->extractfeatures(targetImage, targetFace.row(0)));
+
+        RCLCPP_INFO(this->get_logger(), "Loaded target face from: %s", path.c_str());
+    }
 
     // Set up camera size
     const auto [w, h] = m_frameCapture.getCameraSize();
@@ -119,11 +147,40 @@ void FaceRecognitionNode::processFrame()
                 // }
                 RCLCPP_INFO(this->get_logger(), "Matched %zu faces", matches.size());
                 // Measure similarity of target face to query face
-                const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
-                matches.push_back(match);
+                // const auto match = m_faceRecognizer->matchFeatures(m_targetFeatures, query_features);
+                // matches.push_back(match);
+
+                double best_similarity = 0.0;
+                bool matched = false;
+
+                // for (const auto &target_features : m_targetFeaturesList)
+                // {
+                //     auto match = m_faceRecognizer->matchFeatures(target_features, query_features);
+                //     if (match.second && match.first > best_similarity)
+                //     {
+                //         best_similarity = match.first;
+                //         matched = true;
+                //     }
+                // }
+
+                int matched_index = -1;
+
+for (size_t t = 0; t < m_targetFeaturesList.size(); ++t)
+{
+    auto match = m_faceRecognizer->matchFeatures(m_targetFeaturesList[t], query_features);
+    if (match.second && match.first > best_similarity)
+    {
+        best_similarity = match.first;
+        matched = true;
+        matched_index = static_cast<int>(t);
+    }
+}
+
+                matches.emplace_back(best_similarity, matched);
 
                 // If unrecognized
-                if (!match.second)
+                // if (!match.second)
+                if (!matched)
                 {
                     bool is_new = true;
                     for (const auto &cached : m_unrecognizedFaceCache)
@@ -218,7 +275,8 @@ void FaceRecognitionNode::publishQueryFrame(const cv::Mat &frame)
     }
 }
 
-std::string FaceRecognitionNode::getCurrentDateFolder() {
+std::string FaceRecognitionNode::getCurrentDateFolder()
+{
     auto now = std::chrono::system_clock::now();
     auto now_time_t = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
@@ -226,6 +284,7 @@ std::string FaceRecognitionNode::getCurrentDateFolder() {
     return UNRECOG_DIR + "/" + ss.str();
 }
 
-void FaceRecognitionNode::ensureDirectoryExists(const std::string& path) {
+void FaceRecognitionNode::ensureDirectoryExists(const std::string &path)
+{
     std::filesystem::create_directories(path);
 }

@@ -52,4 +52,8 @@ private:
     const double UNRECOGNIZED_SIM_THRESHOLD = 0.2;  // Tune this
 
     const std::string UNRECOG_DIR = "unrecognized_faces";
+
+    std::vector<cv::Mat> m_targetImages;
+std::vector<cv::Mat> m_targetFaces;
+std::vector<cv::Mat> m_targetFeaturesList;
 };

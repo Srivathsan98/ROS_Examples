@@ -24,6 +24,7 @@ private:
     cv::VideoCapture cap;
     cv::Mat latestFrame;
     std::mutex mtx;
+    std::vector<std::tuple<double, bool, int>> matches;
 };
 
 #endif // FRAMECAPTURE_H
