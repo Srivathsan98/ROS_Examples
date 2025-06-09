@@ -49,7 +49,7 @@ private:
     cv::Mat m_lastQueryFrame;
 
     std::vector<cv::Mat> m_unrecognizedFaceCache;
-    const double UNRECOGNIZED_SIM_THRESHOLD = 0.91;  // Tune this
+    const double UNRECOGNIZED_SIM_THRESHOLD = 0.2;  // Tune this
 
     const std::string UNRECOG_DIR = "unrecognized_faces";
 };
