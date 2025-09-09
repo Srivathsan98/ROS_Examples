@@ -12,6 +12,24 @@
 using namespace cv;
 using namespace std;
 
+// --- Camera parameters (adjust as needed) ---
+const float CAMERA_FOV_DEG = 62.0; // Raspberry Pi cam ~62°, USB cams ~60°
+int IMAGE_WIDTH = 640;             // will update dynamically
+
+// Function to estimate distance (rough approximation)
+float estimateDistance(int bbox_width_pixels)
+{
+    float fov_rad = CAMERA_FOV_DEG * CV_PI / 180.0;
+    float fraction = (float)bbox_width_pixels / (float)IMAGE_WIDTH;
+
+    if (fraction <= 0.0f) return -1.0f;
+
+    // Assume average object ~0.5m wide (tune this per object if needed)
+    float assumed_object_width_m = 0.5;
+    float distance = assumed_object_width_m / (2.0f * tan(fov_rad / 2.0f) * fraction);
+    return distance;
+}
+
 class ObjectDetectionNode : public rclcpp::Node
 {
 public:
@@ -55,34 +73,10 @@ private:
     {
         cv::Mat frame = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
+        IMAGE_WIDTH = frame.cols; // update each frame
+
         // -------- Preprocess --------
         cv::Mat resized;
-        // cv::resize(frame, resized, cv::Size(640,640));
-        // resized.convertTo(resized, CV_32F, 1.0/255.0);
-
-        // std::vector<float> input_tensor_values;
-        // input_tensor_values.assign((float*)resized.datastart, (float*)resized.dataend);
-
-        // std::array<int64_t, 4> input_shape = {1, 3, 640, 640}; // NCHW
-        // // Convert HWC to CHW
-        // cv::dnn::blobFromImage(resized, resized);
-
-        // // Create tensor
-        // Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-        //     allocator_->GetInfo(), input_tensor_values.data(), input_tensor_values.size(), input_shape.data(), input_shape.size());
-        /************************************************************************************************************************ */
-        // cv::Mat blob;
-        // cv::dnn::blobFromImage(frame, blob, 1.0 / 255.0, cv::Size(640, 640), cv::Scalar(), true, false);
-
-        // // Copy data to tensor
-        // std::vector<float> input_tensor_values(blob.begin<float>(), blob.end<float>());
-
-        // std::array<int64_t, 4> input_shape = {1, 3, 640, 640}; // NCHW
-
-        // Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-        //     allocator_->GetInfo(), input_tensor_values.data(), input_tensor_values.size(),
-        //     input_shape.data(), input_shape.size());
-        /************************************************************************************************************************** */
 
         // Resize + normalize
         cv::resize(frame, resized, cv::Size(640, 640));
@@ -117,86 +111,6 @@ private:
             output_names, 1);
 
         float *output_data = output_tensors.front().GetTensorMutableData<float>();
-        // size_t num_det = output_tensors.front().GetTensorTypeAndShapeInfo().GetShape()[1];
-
-        // yolo_detect_interfaces::msg::DetectObjList objs_msg;
-        // objs_msg.header = msg->header;
-
-        // // Collect all detections above threshold
-        // std::vector<cv::Rect> boxes;
-        // std::vector<float> confidences;
-        // std::vector<int> class_ids;
-        // std::vector<yolo_detect_interfaces::msg::DetectObj> detections;
-
-        // for (size_t i = 0; i < num_det; i++) {
-        //     float x = output_data[i*6 + 0];
-        //     float y = output_data[i*6 + 1];
-        //     float w = output_data[i*6 + 2];
-        //     float h = output_data[i*6 + 3];
-        //     float conf = output_data[i*6 + 4];
-        //     int cls = (int)output_data[i*6 + 5];
-
-        //     if (conf < confThreshold) continue; // Use higher threshold
-
-        //     // Convert normalized coordinates to pixel coordinates
-        //     float cx = x * frame.cols;
-        //     float cy = y * frame.rows;
-        //     float width = w * frame.cols;
-        //     float height = h * frame.rows;
-
-        //     // Create bounding box
-        //     cv::Rect box(cx - width/2, cy - height/2, width, height);
-
-        //     // Ensure box is within image bounds
-        //     box.x = std::max(0, box.x);
-        //     box.y = std::max(0, box.y);
-        //     box.width = std::min(box.width, frame.cols - box.x);
-        //     box.height = std::min(box.height, frame.rows - box.y);
-
-        //     // Skip very small boxes (likely false positives)
-        //     if (box.width < 20 || box.height < 20) continue;
-
-        //     boxes.push_back(box);
-        //     confidences.push_back(conf);
-        //     class_ids.push_back(cls);
-
-        //     // Create detection object
-        //     yolo_detect_interfaces::msg::DetectObj obj;
-        //     obj.label = "obj_" + std::to_string(cls);
-        //     // Better distance estimation based on bounding box size
-        //     float distance = 1000.0 / (width * height);  // Inverse relationship with area
-        //     obj.distance = std::min(distance, 50.0f);  // Cap at 50m
-        //     obj.x = cx; obj.y = cy; obj.w = width; obj.h = height;
-        //     detections.push_back(obj);
-        // }
-
-        // // Apply Non-Maximum Suppression
-        // std::vector<int> indices;
-        // cv::dnn::NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-
-        // // Add only NMS-filtered detections
-        // for (int idx : indices) {
-        //     objs_msg.objects.push_back(detections[idx]);
-
-        //     // Draw box
-        //     cv::Rect box = boxes[idx];
-        //     float distance = detections[idx].distance;
-        //     cv::Scalar color = (distance < 5.0) ? cv::Scalar(0,0,255) :
-        //                        (distance < 10.0) ? cv::Scalar(0,255,255) :
-        //                                            cv::Scalar(0,255,0);
-        //     cv::rectangle(frame, box, color, 2);
-        //     cv::putText(frame, detections[idx].label + " " + std::to_string((int)distance) + "m",
-        //                 cv::Point(box.x, box.y-5), cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 2);
-        // }
-
-        // // Debug information
-        // RCLCPP_INFO(this->get_logger(), "Raw detections: %zu, After NMS: %zu", boxes.size(), indices.size());
-
-        // // Sort nearest → farthest
-        // std::sort(objs_msg.objects.begin(), objs_msg.objects.end(),
-        //           [](auto &a, auto &b){ return a.distance < b.distance; });
-
-        // obj_pub_->publish(objs_msg);
 
         // YOLOv8 output format: [1, 84, 8400] (84 = 4 box coords + 80 classes)
         auto out_shape = output_tensors.front().GetTensorTypeAndShapeInfo().GetShape();
@@ -258,7 +172,7 @@ private:
             obj.y = box.y;
             obj.w = box.width;
             obj.h = box.height;
-            obj.distance = 0.0; // TODO: replace with actual estimation
+            obj.distance = estimateDistance(box.width); // TODO: replace with actual estimation
             detections.push_back(obj);
         }
 
@@ -295,6 +209,8 @@ private:
 
             // Label text
             std::string label = class_names[cls] + cv::format(" %.2f", conf);
+            //  if (obj.distance > 0)
+            //     label << " - " << std::fixed << std::setprecision(2) << obj.distance << "m";
             int baseLine;
             cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
             cv::rectangle(frame, cv::Rect(cv::Point(box.x, box.y - labelSize.height - baseLine), cv::Size(labelSize.width, labelSize.height + baseLine)),
