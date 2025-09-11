@@ -221,6 +221,7 @@ private:
 
         // Publish results
         obj_pub_->publish(objs_msg);
+        cv::resize(frame, frame, cv::Size(800, 600));
 
         cv::imshow("Detections", frame);
         cv::waitKey(1);
